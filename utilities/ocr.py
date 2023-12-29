@@ -1,11 +1,19 @@
 from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
 import requests
+import mimetypes
+
 
 def ocrUrl(url: str) -> list:
     model = ocr_predictor(pretrained=True)
     img_data = requests.get(url).content
-    doc = DocumentFile.from_images(img_data)
+    extension, err = mimetypes.guess_type(url)
+    doc = []
+    if extension == 'application/pdf':
+        doc = DocumentFile.from_pdf(img_data)
+    else:
+        doc = DocumentFile.from_images(img_data)
+
     result = model(doc)
 
     # Extract and print the words

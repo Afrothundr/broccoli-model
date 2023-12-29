@@ -1,10 +1,12 @@
 from typing import Union
 from fastapi import HTTPException, status, Security, FastAPI, BackgroundTasks
 from fastapi.security import APIKeyHeader, APIKeyQuery
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
 from utilities.callback import handleCallback
+from utilities.ocr import ocrUrl
 
 load_dotenv()
 
@@ -14,6 +16,18 @@ apiKeys = [os.environ.get("API_KEY")]
 
 api_key_query = APIKeyQuery(name="api-key", auto_error=False)
 api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
+
+origins = [
+    "http://localhost:5007",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def get_api_key(
@@ -38,6 +52,11 @@ class Item(BaseModel):
 
 class Resource(BaseModel):
     url: str
+    receiptId: int
+
+
+class ScrapedItem(BaseModel):
+    name: str
 
 
 @app.get("/")
@@ -56,6 +75,25 @@ def update_item(item_id: int, item: Item):
 
 
 @app.post("/ocr")
-def read_item(resource: Resource, background_tasks: BackgroundTasks, api_key: str = Security(get_api_key)):
-    background_tasks.add_task(handleCallback, resource.url)
-    return {"status": f"processing: {resource.url}"}
+def read_item(resource: Resource, api_key: str = Security(get_api_key)):
+    list = ocrUrl(resource.url)
+    data = []
+    try:
+        for result in list:
+            try:
+                float(result)
+                continue
+            except ValueError:
+                if "$" in result:
+                    continue
+            try:
+                resultList = result.split()
+                float(resultList[0])
+                continue
+            except:
+                data.append(ScrapedItem(name=result).model_dump())
+        return {"data": data, "receiptId": resource.receiptId}
+    
+    except:
+        raise HTTPException(
+            status_code=500, detail=f'Problem processing image: {resource.url}')
