@@ -1,12 +1,13 @@
 from typing import Union
-from fastapi import HTTPException, status, Security, FastAPI, BackgroundTasks
+from fastapi import HTTPException, status, Security, FastAPI
 from fastapi.security import APIKeyHeader, APIKeyQuery
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
-from utilities.callback import handleCallback
-from utilities.ocr import ocrUrl
+
+from app.utilities.ocr import ocrUrl
+
 
 load_dotenv()
 
