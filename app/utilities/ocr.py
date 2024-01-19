@@ -2,10 +2,12 @@ from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
 import requests
 import mimetypes
+from spellchecker import SpellChecker
 
+spell = SpellChecker()
+model = ocr_predictor(pretrained=True, resolve_blocks=False)
 
 def ocrUrl(url: str) -> list:
-    model = ocr_predictor(pretrained=True)
     img_data = requests.get(url).content
     extension, err = mimetypes.guess_type(url)
     doc = []
@@ -23,6 +25,7 @@ def ocrUrl(url: str) -> list:
             for line in block.lines:
                 words = []
                 for word in line.words:
-                    words.append(word.value)
+                    has_correction = spell.correction(word.value)
+                    words.append(has_correction if has_correction else word.value)
                 lines.append(' '.join(words))
     return lines

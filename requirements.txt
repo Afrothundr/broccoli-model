@@ -11,3 +11,4 @@ python-dotenv==1.0.0
 python-doctr==0.7.0
 opencv-python-headless==4.9.0.80
 tf2onnx==1.15.1
+pyspellchecker==0.8.0
