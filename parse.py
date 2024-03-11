@@ -1,3 +1,4 @@
+import json
 from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
 import os
@@ -20,6 +21,7 @@ for root, dirs, files in os.walk(example_images):
 
 print(f'Processing {len(file_paths)} images')
 
+rows = []
 for index, path in enumerate(file_paths):
     print(f'Progress: {(index + 1) / len(file_paths) * 100}%')
     doc = DocumentFile.from_images(path)
@@ -36,8 +38,10 @@ for index, path in enumerate(file_paths):
                 lines.append(' '.join(words))
 
 
-    file_name = os.path.basename(path)
-    name_without_extension, _ = os.path.splitext(file_name)
-    with open(f'examples/text/{name_without_extension}.txt', 'w') as out_file:
-        out_file.write(' '.join(lines))
+    rows.append(json.dumps({'text': ' '.join(lines)}))
+
+file_name = 'training_data'
+
+with open(f'examples/data/{file_name}.jsonl', 'w') as out_file:
+    out_file.write('\n'.join(rows))
 print('Complete')

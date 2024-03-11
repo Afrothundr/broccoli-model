@@ -1,62 +1,83 @@
 # pip install -U spacy
 # python -m spacy download en_core_web_sm
+import json
+from pydantic import BaseModel
 import spacy
 from spacy.matcher import Matcher
 from spacy.tokens import Token
+import srsly
 
 # Load English tokenizer, tagger, parser and NER
-nlp = spacy.load("en_core_web_md")
+nlp = spacy.load("en_receipt_model")
+list = ' '.join(['WHOLE', 'FOODS', 'had', 'medical healthiest Grocery store', 'of CLEMENTINE BAG', '699', 'stole cut come or', '3.49 F', 'CROFT STRAUBRY sir', '4,99 F', '1.19 LB2.49 rib', 'TARE : 01', 'UT', 'BEANS GREEN', '2.96 F', 'ITEM - 4066', 'viral CREAM SODA', '4.99 B', 'ma TOMATO BASIL S', '3.99 F', 'BULK ALMOND BUTTER', '5.77F', 'mica part red grab', '4.231 F', 'be of VAN ark yurt', '1.39 F', 'be of VAN ark yurt',
+                '1.39 F', '365 it chunk TUNA', '2.59 F', 'be of VAN ark yurt', '139 E', 'be of VAN ark yurt', '1.39 F', 'inch of inn HOT C', '6.99 F', 'BLACKBERRIES', '3.99 F', 'arm thick old days', '4.99 F', '2.331B2.99 alb', 'TARE - 01', 'it', 'BANANA 06', '2.31 F', 'ITEM i - 94237', 'my', 'BAG REFUND', '10-', 'ITEM : 486408', '46-F', 'item 20% Off bananas', '35', ': Tax e 7.00%', '63.63', 'own TAX', '35 bad'])
+print(list)
+# data = srsly.read_jsonl('./examples/data/training_data.jsonl')
 
-#Initialize matcher
-matcher = Matcher(nlp.vocab)
+# data_tuples = ((eg['text'], eg) for eg in data)
+# results = []
+# for doc, eg in nlp.pipe(data_tuples, as_tuples=True):
+#     for index, ent in enumerate(doc.ents):
+#         if ent.label_ == 'FOOD':
+#             price = '0.00'
+#             for next_ent in doc.ents[index:]:
+#                 if next_ent.label_ == 'PRICE':
+#                     price = next_ent.text
+#                     break
+#             results.append(json.dumps(
+#                 {'food': ent.text.title(), 'price': price}, indent=4))
+# print(results)
 
+class ScrapedItem(BaseModel):
+    name: str
+    price: float
+    
+data = []
+doc = nlp(list)
 
-# Process whole documents
-text = ("""= SUTH SLR o vOo. oY T N
-“Sﬁﬁgﬂgﬁx BN VEG @QHﬁF g;aggf?/f
-PRE-WRAPPED MEAL
-Supervisor #3003
-PRE -WRAPPED MEAT $3.00 2 F
-LEMON LARGE | W
-6@ $0.79 EA $4.74 2 F
-ONION GREEN W $1.29 2 F
-PEPPER BELL RED W
-59 2 FOR $3.00 $7.50 2 F
-Reg 2/$5.00 Sale 2/$3.00
-PEPPER BELL YELLOW  wx &
-3@ 2 FOR $3.00 $4.950 2 F
-Reg 2/$5.00 Sale 2/$3.00
-WETGHED PRODUCE
-~ ASPARAGUS GREEN W
-2.25 1b @ $4.99/ 1b $11.23 2 F
-ONION YIDALIA W
-0,55 1b'@ $1,49/ " $1.82 2 F
-Rgg'gE.GQ Sale §1.49
-SEEDLESS WTRMILN CHN 3 3
-,,1. b @ $3.99/ 1b $4.90 2 F
-~ SQUASH ZUCCHINI W 3 e
-PR R, §199/ 10 $1 2> f""")
-        
-docs = list(nlp.pipe(text))
-vegetable = nlp("vegetable")
+# for index, ent in enumerate(doc.ents):
+#     if ent.label_ == 'FOOD':
+#         price = '0.00'
+#         for next_ent in doc.ents[index:]:
+#             if next_ent.label_ == 'PRICE':
+#                 price = next_ent.text
+#                 break
+#         try:
+#             data.append(json.dumps({'name': ent.text,
+#                         'price': float(price)}))
+#         except:
+#             continue
+# print(data)
 
+try:
+    for index, ent in enumerate(doc.ents):
+        if ent.label_ == 'FOOD':
+            price = '0.00'
+            for next_ent in doc.ents[index:]:
+                if next_ent.label_ == 'PRICE':
+                    price = next_ent.text
+                    break
+            try:
+                data.append(ScrapedItem(name=ent.text.title(),
+                            price=float(price)).model_dump())
+            except:
+                continue
+except:
+    print('error')
 
-# pattern = [{"POS": "ADJ", "OP": "?"}, {"POS": "NOUN"}]
-
-# matcher.add("ITEM-IDENTIFIER", [pattern])
-
+print(data)
 
 
 # # Analyze syntax
 # print("Noun phrases:", [chunk.text for chunk in doc.noun_chunks])
 # print("Verbs:", [token.lemma_ for token in doc if token.pos_ == "VERB"])
 
-#We can use the food categories and the .similarity function to try and categorize foods
+# We can use the food categories and the .similarity function to try and categorize foods
 
 # Find named entities, phrases and concepts
 # for match_id, start_index, end_index in matcher(doc):
 #     print(doc[start_index: end_index])
 
-for token in doc:
-    if token:
-        print("Found a similarity to vegetable:", token.text, token.similarity(vegetable))
+# for token in doc:
+#     if token:
+#         print("Found a similarity to vegetable:", token.text, token.similarity(vegetable))``

@@ -7,7 +7,7 @@ from spellchecker import SpellChecker
 spell = SpellChecker()
 model = ocr_predictor(pretrained=True, resolve_blocks=False)
 
-def ocrUrl(url: str) -> list:
+def ocrUrl(url: str) -> str:
     img_data = requests.get(url).content
     extension, err = mimetypes.guess_type(url)
     doc = []
@@ -28,4 +28,4 @@ def ocrUrl(url: str) -> list:
                     has_correction = spell.correction(word.value)
                     words.append(has_correction if has_correction else word.value)
                 lines.append(' '.join(words))
-    return lines
+    return ' '.join(lines)
