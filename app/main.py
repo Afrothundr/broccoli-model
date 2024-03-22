@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status, Security, FastAPI
 from fastapi.security import APIKeyHeader, APIKeyQuery
 from fastapi.middleware.cors import CORSMiddleware
-from database.db import database, Receipt
+from app.database.db import database, Receipt
 from pydantic import BaseModel
 import os
 import spacy
@@ -19,7 +19,7 @@ ml_models = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load the ML model
-    # ml_models['np'] = spacy.load("en_receipt_model")
+    ml_models['np'] = spacy.load("en_receipt_model")
     if not database.is_connected:
         await database.connect()
 
@@ -72,7 +72,7 @@ class Resource(BaseModel):
 
 class ScrapedItem(BaseModel):
     name: str
-    price: float
+    price: str
 
 
 @app.get("/")
@@ -84,8 +84,7 @@ def read_root():
 async def read_item(resource: Resource, api_key: str = Security(get_api_key)):
     text = ocrUrl(resource.url)
     await Receipt.objects.get_or_create(text=text)
-    np = spacy.load("en_receipt_model")
-    doc = np(text)
+    doc = ml_models['np'](text)
     data = []
     try:
         for index, ent in enumerate(doc.ents):
@@ -96,8 +95,10 @@ async def read_item(resource: Resource, api_key: str = Security(get_api_key)):
                         price = next_ent.text
                         break
                 try:
-                    data.append(ScrapedItem(name=ent.text.title(),
-                                price=float(price)).model_dump())
+                    item = ScrapedItem(name=ent.text.title(),
+                                price=float(price))
+                    
+                    data.append(dict(item))
                 except:
                     continue
         return {"data": data, "receiptId": resource.receiptId}

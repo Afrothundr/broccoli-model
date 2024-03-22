@@ -1,5 +1,4 @@
 asyncpg==0.27.0
-en_receipt_model @ ./en_receipt_model-0.0.0-py3-none-any.whl
 fastapi==0.105.0
 oauthlib==3.2.2
 opencv-python-headless==4.9.0.80
@@ -9,7 +8,7 @@ pydantic_core==2.10.1
 pyspellchecker==0.8.0
 python-doctr==0.7.0
 python-dotenv==1.0.0
-spacy==3.7.2
+spacy
 tensorflow==2.14.0
 tf2onnx==1.15.1
 typing_extensions==4.8.0
