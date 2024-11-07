@@ -1,0 +1,60 @@
+{
+  "lang":"en",
+  "name":"receipt_model",
+  "version":"0.0.1",
+  "description":"",
+  "author":"",
+  "email":"",
+  "url":"",
+  "license":"",
+  "spacy_version":">=3.6.1,<3.7.0",
+  "spacy_git_version":"458bc5f45",
+  "vectors":{
+    "width":0,
+    "vectors":0,
+    "keys":0,
+    "name":null
+  },
+  "labels":{
+    "tok2vec":[
+
+    ],
+    "ner":[
+      "FOOD",
+      "PRICE"
+    ]
+  },
+  "pipeline":[
+    "tok2vec",
+    "ner"
+  ],
+  "components":[
+    "tok2vec",
+    "ner"
+  ],
+  "disabled":[
+
+  ],
+  "performance":{
+    "ents_f":0.7941952507,
+    "ents_p":0.7931488801,
+    "ents_r":0.7952443857,
+    "ents_per_type":{
+      "FOOD":{
+        "p":0.6435643564,
+        "r":0.6112852665,
+        "f":0.6270096463
+      },
+      "PRICE":{
+        "p":0.8925438596,
+        "r":0.9292237443,
+        "f":0.9105145414
+      }
+    },
+    "tok2vec_loss":649.7919551264,
+    "ner_loss":898.556631455
+  },
+  "requirements":[
+
+  ]
+}
