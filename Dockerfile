@@ -12,7 +12,7 @@ RUN apt-get install ffmpeg libsm6 libxext6 libpq-dev postgresql-client -y
 COPY ./app /code/app
 
 # Install the Python dependencies
-RUN pip install /code/app/en_receipt_model-0.0.0-py3-none-any.whl && pip install -r /code/requirements.txt
+RUN pip install /code/app/en_receipt_model-0.0.1-py3-none-any.whl && pip install -r /code/requirements.txt
 
 
 # Run the FastAPI application using uvicorn server
