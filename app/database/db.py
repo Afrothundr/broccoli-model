@@ -21,7 +21,7 @@ class Receipt(ormar.Model):
     id: int = ormar.Integer(primary_key=True)
     text: str = ormar.Text(unique=True)
     created_at: datetime.datetime = ormar.DateTime(
-       default=datetime.datetime.now
+        default=datetime.datetime.now
     )
 
 

@@ -77,12 +77,12 @@ class ScrapedItem(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"Healthy": True }
+    return {"Healthy": True}
 
 
 @app.post("/ocr")
 async def read_item(resource: Resource, api_key: str = Security(get_api_key)):
-    text = ocrUrl(resource.url)
+    text = await ocrUrl(resource.url)
     await Receipt.objects.get_or_create(text=text)
     doc = ml_models['np'](text)
     data = []
@@ -96,8 +96,8 @@ async def read_item(resource: Resource, api_key: str = Security(get_api_key)):
                         break
                 try:
                     item = ScrapedItem(name=ent.text.title(),
-                                price=float(price))
-                    
+                                       price=float(price))
+
                     data.append(dict(item))
                 except:
                     continue
