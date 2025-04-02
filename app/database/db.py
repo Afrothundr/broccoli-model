@@ -8,15 +8,16 @@ from app.database.config import settings
 database = databases.Database(settings.db_url)
 metadata = sqlalchemy.MetaData()
 
-
-class BaseMeta(ormar.ModelMeta):
-    metadata = metadata
-    database = database
+base_ormar_config = ormar.OrmarConfig(
+    metadata=metadata,
+    database=database
+)
 
 
 class Receipt(ormar.Model):
-    class Meta(BaseMeta):
-        tablename = "receipts"
+    ormar_config = base_ormar_config.copy(
+        tablename="receipts"
+    )
 
     id: int = ormar.Integer(primary_key=True)
     text: str = ormar.Text(unique=True)
