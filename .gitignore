@@ -162,3 +162,5 @@ cython_debug/
 #app-specific
 */credentials.json
 **/docker.local.env
+
+**/images/

@@ -2,9 +2,10 @@ from fastapi import HTTPException, status, Security, FastAPI
 from fastapi.security import APIKeyHeader, APIKeyQuery
 from fastapi.middleware.cors import CORSMiddleware
 from app.database.db import database, Receipt
+from app.utilities.generate_list import generate_list, ScrapedItem
 from pydantic import BaseModel
+from pydantic_core import from_json
 import os
-import spacy
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
@@ -18,8 +19,6 @@ ml_models = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load the ML model
-    ml_models['np'] = spacy.load("en_receipt_model")
     if not database.is_connected:
         await database.connect()
 
@@ -27,9 +26,6 @@ async def lifespan(app: FastAPI):
 
     if database.is_connected:
         await database.disconnect()
-
-    # Clean up the ML models and release the resources
-    ml_models.clear()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -70,11 +66,6 @@ class Resource(BaseModel):
     receiptId: int
 
 
-class ScrapedItem(BaseModel):
-    name: str
-    price: str
-
-
 @app.get("/")
 def read_root():
     return {"Healthy": True}
@@ -82,25 +73,10 @@ def read_root():
 
 @app.post("/ocr")
 async def read_item(resource: Resource, api_key: str = Security(get_api_key)):
-    text = await ocrUrl(resource.url)
-    await Receipt.objects.get_or_create(text=text)
-    doc = ml_models['np'](text)
-    data = []
     try:
-        for index, ent in enumerate(doc.ents):
-            if ent.label_ == 'FOOD':
-                price = '0.00'
-                for next_ent in doc.ents[index:]:
-                    if next_ent.label_ == 'PRICE':
-                        price = next_ent.text
-                        break
-                try:
-                    item = ScrapedItem(name=ent.text.title(),
-                                       price=float(price))
-
-                    data.append(dict(item))
-                except:
-                    continue
+        text = await ocrUrl(resource.url)
+        await Receipt.objects.get_or_create(text=text)
+        data = from_json(await generate_list(resource.url, text))
         return {"data": data, "receiptId": resource.receiptId}
     except:
         raise HTTPException(

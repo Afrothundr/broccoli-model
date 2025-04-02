@@ -15,7 +15,6 @@ else:
         json.dump(json.loads(settings.gcp_creds), credFile)
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'credentials.json'
-print(os.environ['GOOGLE_APPLICATION_CREDENTIALS'])
 client = vision.ImageAnnotatorClient()
 
 
