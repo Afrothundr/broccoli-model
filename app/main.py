@@ -74,9 +74,13 @@ def read_root():
 @app.post("/ocr")
 async def read_item(resource: Resource, api_key: str = Security(get_api_key)):
     try:
-        text = await ocrUrl(resource.url)
+        (text, jpeg_list) = await ocrUrl(resource.url)
         await Receipt.objects.get_or_create(text=text)
-        data = from_json(await generate_list(resource.url, text))
+        data = None
+        if jpeg_list is None:
+            data = from_json(await generate_list(resource.url, text))
+        else:
+            data = from_json(await generate_list(resource.url, text, jpeg_list[0]))
         return {"data": data, "receiptId": resource.receiptId}
     except:
         raise HTTPException(

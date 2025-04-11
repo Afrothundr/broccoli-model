@@ -70,39 +70,44 @@ async def process_page(jpeg_bytes: bytes):
 
 
 async def ocrUrl(url: str):
-    extension, err = mimetypes.guess_type(url)
-    if err:
-        raise Exception("errors", err)
-    result = str
-    if extension == 'application/pdf':
-     # Convert PDF pages to JPEG
-        jpeg_bytes_list = convert_pdf_pages_to_jpegs(
-            url,
-            start_page=0,
-            end_page=5
-        )
+    try:
+        r = requests.get(url)
+        content_type = r.headers.get('content-type')
+        result = str
+        jpeg_bytes_list = None
 
-        # Process pages concurrently
-        tasks = [process_page(jpeg_bytes) for jpeg_bytes in jpeg_bytes_list]
-        results = await asyncio.gather(*tasks)
+        if content_type == 'application/pdf':
+            # Convert PDF pages to JPEG
+            jpeg_bytes_list = convert_pdf_pages_to_jpegs(
+                url,
+                start_page=0,
+                end_page=5
+            )
 
-        # Combine results with page numbers
-        formatted_results = []
-        for i, text in enumerate(results, 1):
-            if text.strip():  # Only include non-empty pages
-                formatted_results.append(text)
+            # Process pages concurrently
+            tasks = [process_page(jpeg_bytes)
+                     for jpeg_bytes in jpeg_bytes_list]
+            results = await asyncio.gather(*tasks)
 
-        result = ' '.join(formatted_results)
-    else:
-        # Handle non-PDF files as before
-        image = vision.Image()
-        image.source.image_uri = url
+            # Combine results with page numbers
+            formatted_results = []
+            for i, text in enumerate(results, 1):
+                if text.strip():  # Only include non-empty pages
+                    formatted_results.append(text)
 
-        response = client.text_detection(image=image)
-        if response.error.message:
-            raise Exception("errors", response.error.message)
+            result = ' '.join(formatted_results)
+        else:
+            # Handle non-PDF files as before
+            image = vision.Image()
+            image.source.image_uri = url
 
-        texts = response.text_annotations
-        result = texts[0].description if texts else ""
+            response = client.text_detection(image=image)
+            if response.error.message:
+                raise Exception("errors", response.error.message)
 
-    return result.replace('\n', ' ')
+            texts = response.text_annotations
+            result = texts[0].description if texts else ""
+
+    except Exception as e:
+        print(e)
+    return result.replace('\n', ' '), jpeg_bytes_list
