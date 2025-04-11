@@ -4,6 +4,7 @@ import os
 import enum
 from urllib.request import urlopen, Request
 from pydantic import BaseModel
+from io import BytesIO
 
 client = genai.Client(api_key=os.environ.get("AI_KEY"))
 
@@ -126,12 +127,16 @@ class ScrapedItem(BaseModel):
     category: Category
 
 
-async def generate_list(url: str, ocr: str):
+async def generate_list(url: str, ocr: str, jpeg: bytes):
     try:
         request_image = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        image = Image.open(urlopen(request_image))
+        image = None
+        if jpeg is None:
+            image = Image.open(urlopen(request_image))
+        else:
+            image = Image.open(BytesIO(jpeg))
         prompt = f"""
-            Given this OCR result from this image, give me a list of all of the grocery items in this receipt with categories. 
+            Given this OCR result from this image, give me a list of all of the grocery items in this receipt with categories and prices. An example price looks like $12.98
             OCR: {ocr}
         """
         response = client.models.generate_content(
