@@ -127,7 +127,7 @@ class ScrapedItem(BaseModel):
     category: Category
 
 
-async def generate_list(url: str, ocr: str, jpeg: bytes):
+async def generate_list(url: str, ocr: str, jpeg: bytes = None):
     try:
         request_image = Request(url, headers={"User-Agent": "Mozilla/5.0"})
         image = None
