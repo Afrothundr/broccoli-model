@@ -75,7 +75,6 @@ async def ocrUrl(url: str):
         content_type = r.headers.get('content-type')
         result = str
         jpeg_bytes_list = None
-
         if content_type == 'application/pdf':
             # Convert PDF pages to JPEG
             jpeg_bytes_list = convert_pdf_pages_to_jpegs(
@@ -104,10 +103,8 @@ async def ocrUrl(url: str):
             response = client.text_detection(image=image)
             if response.error.message:
                 raise Exception("errors", response.error.message)
-
             texts = response.text_annotations
             result = texts[0].description if texts else ""
-
     except Exception as e:
         print(e)
     return result.replace('\n', ' '), jpeg_bytes_list

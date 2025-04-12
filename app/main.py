@@ -82,6 +82,7 @@ async def read_item(resource: Resource, api_key: str = Security(get_api_key)):
         else:
             data = from_json(await generate_list(resource.url, text, jpeg_list[0]))
         return {"data": data, "receiptId": resource.receiptId}
-    except:
+    except Exception as e:
+        print(e)
         raise HTTPException(
             status_code=500, detail=f'Problem processing image: {resource.url}')
