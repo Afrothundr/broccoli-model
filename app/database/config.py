@@ -7,8 +7,12 @@ load_dotenv()
 
 
 class Settings(BaseSettings):
-    db_url: str
-    gcp_creds: str = Field(..., env='GCP_CREDS')
+    db_url: str = Field(..., alias='DATABASE_URL')
+    gcp_creds: str = Field(..., alias='GCP_CREDS')
+
+    class Config:
+        env_file = '.env'
+        populate_by_name = True
 
 
-settings = Settings(db_url=os.environ.get('DATABASE_URL'))
+settings = Settings()
