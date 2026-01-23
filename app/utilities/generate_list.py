@@ -127,6 +127,11 @@ class ScrapedItem(BaseModel):
     category: Category
 
 
+class Result(BaseModel):
+    store: str
+    items: list[ScrapedItem]
+
+
 async def generate_list(url: str, ocr: str, jpeg: bytes = None):
     try:
         request_image = Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -140,10 +145,10 @@ async def generate_list(url: str, ocr: str, jpeg: bytes = None):
             OCR: {ocr}
         """
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-3-flash-preview",
             contents=[image, prompt],
             config={
-                'response_mime_type': "application/json", "response_schema": list[ScrapedItem]
+                'response_mime_type': "application/json", "response_schema": Result
             },
         )
         return response.text
