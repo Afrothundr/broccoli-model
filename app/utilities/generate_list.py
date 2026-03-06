@@ -1,5 +1,4 @@
 import os
-from enum import Enum
 from typing import Any, Optional
 from urllib.request import Request, urlopen
 
@@ -20,35 +19,6 @@ class Result(BaseModel):
     items: list[ScrapedItem]
 
 
-def build_category_enum(item_types: list[dict]) -> type:
-    """Dynamically build a Category enum from the ItemType names fetched from the core DB."""
-    members = {
-        row["name"].upper().replace(" ", "_").replace("-", "_"): row["name"]
-        for row in item_types
-    }
-    members["UNKNOWN"] = "Unknown"
-    return Enum("Category", members)
-
-
-def build_result_schema(item_types: list[dict]) -> type:
-    """Build a dynamic ScrapedItem + Result schema with the live Category enum."""
-    Category = build_category_enum(item_types)
-
-    class DynamicScrapedItem(BaseModel):
-        name: str
-        price: str
-        category: Category  # type: ignore[valid-type]
-
-    class DynamicResult(BaseModel):
-        store: str
-        items: list[DynamicScrapedItem]
-
-    DynamicScrapedItem.__name__ = "ScrapedItem"
-    DynamicResult.__name__ = "Result"
-
-    return DynamicResult
-
-
 def build_item_type_context(item_types: list[dict]) -> str:
     """Format item types into a readable context block for the Gemini prompt."""
     lines = []
@@ -63,12 +33,11 @@ async def generate_list(
     try:
         client = genai.Client(api_key=os.environ.get("AI_KEY"))
         item_type_context = build_item_type_context(item_types)
-        result_schema = build_result_schema(item_types)
 
         prompt = f"""
             Given this OCR result from this image, give me a list of all of the grocery items in this receipt with categories and prices. An example price looks like $12.98.
 
-            When assigning a category to each item, you MUST use one of the following known item types. Match each grocery item to the closest one. If nothing fits, use "Unknown":
+            When assigning a category to each item, you MUST use one of the following known item types as the "category" field value. Match each grocery item to the closest one. If nothing fits, use "Unknown":
             {item_type_context}
 
             OCR: {ocr}
@@ -91,7 +60,7 @@ async def generate_list(
             contents=contents,
             config={
                 "response_mime_type": "application/json",
-                "response_schema": result_schema,
+                "response_schema": Result,
             },
         )
         return response.text or ""
