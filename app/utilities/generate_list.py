@@ -8,8 +8,6 @@ from google.genai import types
 from PIL import Image
 from pydantic import BaseModel
 
-client = genai.Client(api_key=os.environ.get("AI_KEY"))
-
 
 class ScrapedItem(BaseModel):
     name: str
@@ -63,6 +61,7 @@ async def generate_list(
     url: str, ocr: str, item_types: list[dict], jpeg_list: Optional[list[bytes]] = None
 ) -> str:
     try:
+        client = genai.Client(api_key=os.environ.get("AI_KEY"))
         item_type_context = build_item_type_context(item_types)
         result_schema = build_result_schema(item_types)
 
