@@ -1,16 +1,17 @@
-from fastapi import HTTPException, status, Security, FastAPI
-from fastapi.security import APIKeyHeader, APIKeyQuery
-from fastapi.middleware.cors import CORSMiddleware
-from app.database.db import database, Receipt
-from app.utilities.generate_list import generate_list, ScrapedItem
-from pydantic import BaseModel
-from pydantic_core import from_json
 import os
-from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
-from app.utilities.ocr import ocrUrl
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Security, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader, APIKeyQuery
+from pydantic import BaseModel
+from pydantic_core import from_json
 
+from app.database.core_db import fetch_item_types
+from app.database.db import Receipt, database
+from app.utilities.generate_list import generate_list
+from app.utilities.ocr import ocrUrl
 
 load_dotenv()
 
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
 
     if database.is_connected:
         await database.disconnect()
+
 
 app = FastAPI(lifespan=lifespan)
 
@@ -76,13 +78,17 @@ async def read_item(resource: Resource, api_key: str = Security(get_api_key)):
     try:
         (text, jpeg_list) = await ocrUrl(resource.url)
         await Receipt.objects.get_or_create(text=text)
+        item_types = await fetch_item_types()
         data = None
         if jpeg_list is None:
-            data = from_json(await generate_list(resource.url, text))
+            data = from_json(await generate_list(resource.url, text, item_types))
         else:
-            data = from_json(await generate_list(resource.url, text, jpeg_list[0]))
+            data = from_json(
+                await generate_list(resource.url, text, item_types, jpeg_list)
+            )
         return {"data": data, "receiptId": resource.receiptId}
     except Exception as e:
         print(e)
         raise HTTPException(
-            status_code=500, detail=f'Problem processing image: {resource.url}')
+            status_code=500, detail=f"Problem processing image: {resource.url}"
+        )
