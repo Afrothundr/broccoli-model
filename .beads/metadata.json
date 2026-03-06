@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "broccoli_model",
+  "project_id": "043c1688-603c-43be-ba7f-778081459de4"
+}

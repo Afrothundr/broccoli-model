@@ -164,3 +164,7 @@ cython_debug/
 **/docker.local.env
 
 **/images/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
