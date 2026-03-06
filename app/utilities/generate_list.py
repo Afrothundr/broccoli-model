@@ -22,21 +22,33 @@ class Result(BaseModel):
 
 
 def snap_categories(result_json: str, item_types: list[dict]) -> str:
-    """Fuzzy-snap Gemini's returned category string to the closest broad ItemType category.
+    """Fuzzy-snap Gemini's returned ItemType name to the closest exact name in the DB.
 
-    Gemini is prompted to return one of the broad category values (e.g. "Dairy",
-    "Frozen", "Vegetables"). This step tolerates minor wording differences and typos
-    by fuzzy-matching against the distinct category values in the ItemType table.
-    If no confident match is found we fall back to "Unknown".
+    Gemini is prompted to return one of the 162 specific ItemType names. This step
+    tolerates minor wording differences / OCR noise by fuzzy-matching the returned
+    string against all known names with a high confidence threshold (85).
+
+    If the name match is not confident enough we fall back to fuzzy-matching the
+    returned string against the broad category values (70 threshold) so the item
+    still lands in a sensible bucket rather than "Unknown".
     """
+    all_names = [row["name"] for row in item_types]
     distinct_categories = sorted({row["category"] for row in item_types})
 
     data = json.loads(result_json)
     for item in data.get("items", []):
         raw = item.get("category", "")
-        match = process.extractOne(raw, distinct_categories, scorer=fuzz.WRatio)
-        if match and match[1] >= 70:
-            item["category"] = match[0]
+
+        # First try: snap to a specific ItemType name
+        name_match = process.extractOne(raw, all_names, scorer=fuzz.WRatio)
+        if name_match and name_match[1] >= 85:
+            item["category"] = name_match[0]
+            continue
+
+        # Second try: snap to a broad category
+        cat_match = process.extractOne(raw, distinct_categories, scorer=fuzz.WRatio)
+        if cat_match and cat_match[1] >= 70:
+            item["category"] = cat_match[0]
         else:
             item["category"] = "Unknown"
 
@@ -44,14 +56,19 @@ def snap_categories(result_json: str, item_types: list[dict]) -> str:
 
 
 def build_item_type_context(item_types: list[dict]) -> str:
-    """Format the distinct broad categories into a context block for the Gemini prompt.
+    """Format all 162 ItemType names grouped by broad category for the Gemini prompt.
 
-    We ask Gemini to return a broad category (Dairy, Frozen, Vegetables, …) rather
-    than a specific ItemType name. Broad categories are far fewer and more reliably
-    matched; we then snap to the specific ItemType in post-processing.
+    Grouping by category makes it easier for the model to scan and pick the right
+    specific name rather than inventing its own category label.
     """
-    distinct_categories = sorted({row["category"] for row in item_types})
-    lines = [f"- {cat}" for cat in distinct_categories]
+    by_category: dict[str, list[str]] = {}
+    for row in item_types:
+        by_category.setdefault(row["category"], []).append(row["name"])
+
+    lines: list[str] = []
+    for category in sorted(by_category):
+        names = ", ".join(sorted(by_category[category]))
+        lines.append(f"{category}: {names}")
     return "\n".join(lines)
 
 
@@ -65,7 +82,8 @@ async def generate_list(
         prompt = f"""
             Given this OCR result from this image, give me a list of all of the grocery items in this receipt with categories and prices. An example price looks like $12.98.
 
-            When assigning a category to each item, you MUST use one of the following broad category values as the "category" field value. Match each grocery item to the closest one. If nothing fits, use "Unknown":
+            For each item's "category" field you MUST copy one of the exact item type names from the list below — do not invent new names or use generic labels like "Snacks" or "Dairy". Each line below shows a broad group followed by the exact names you may use. Pick the closest match. If nothing fits, use "Unknown".
+
             {item_type_context}
 
             OCR: {ocr}
