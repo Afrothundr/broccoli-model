@@ -1,130 +1,19 @@
-from PIL import Image
-from google import genai
+import json
 import os
-import enum
-from urllib.request import urlopen, Request
+from typing import Any, Optional
+from urllib.request import Request, urlopen
+
+from google import genai
+from google.genai import types
+from PIL import Image
 from pydantic import BaseModel
-from io import BytesIO
-
-client = genai.Client(api_key=os.environ.get("AI_KEY"))
-
-
-class Category(enum.Enum):
-    APPLES = 'Apples'
-    APRICOTS = 'Apricots'
-    ARTICHOKES = 'Artichokes'
-    ARUGULA = 'Arugula'
-    ASPARAGUS = 'Asparagus'
-    AVOCADOS = 'Avocados'
-    BACON = 'Bacon'
-    BANANAS = 'Bananas'
-    BASIL = 'Basil'
-    BEET = 'Beet'
-    BEETS = 'Beets'
-    BOK_CHOY = 'Bok Choy'
-    BREAD = 'Bread'
-    BROCCOLI = 'Broccoli'
-    BRUSSELS_SPROUTS = 'Brussels sprouts'
-    BUTTER = 'Butter'
-    CABBAGE = 'Cabbage'
-    CARROTS = 'Carrots'
-    CAULIFLOWER = 'Cauliflower'
-    CELERY = 'Celery'
-    CHARD = 'Chard'
-    CHEESE = 'Cheese'
-    CHERRIES = 'Cherries'
-    CILANTRO = 'Cilantro'
-    CITRUS = 'Citrus'
-    COCONUT_MILK = 'Coconut Milk'
-    COLLARD_GREENS = 'Collard Greens'
-    CORN_ON_THE_COB = 'Corn on the cob'
-    COTTAGE_CHEESE = 'Cottage Cheese'
-    CUCUMBERS = 'Cucumbers'
-    CUT_MELONS = 'Cut Melons'
-    DELI_MEAT = 'Deli meat'
-    DILL = 'Dill'
-    EGGPLANT = 'Eggplant'
-    EGGS = 'Eggs'
-    ENDIVE = 'Endive'
-    FIGS = 'Figs'
-    FLOUR = 'Flour'
-    FRESH_MEAT = 'Fresh meat'
-    FRESH_PEAS = 'Fresh Peas'
-    FROZEN_FOOD = 'Frozen food'
-    FROZEN_SHELLFISH = 'Frozen shellfish'
-    GARLIC = 'Garlic'
-    GINGER = 'Ginger'
-    GRAPEFRUIT = 'Grapefruit'
-    GRAPES = 'Grapes'
-    GREEN_BEANS = 'Green Beans'
-    GREEN_ONIONS = 'Green Onions'
-    HARD_CHEESE = 'Hard Cheese'
-    HOT_DOGS_OR_PRECOOKED_SAUSAGE = 'Hot dogs or precooked sausage'
-    KALE = 'Kale'
-    KIWI = 'Kiwi'
-    LAVENDER = 'Lavender'
-    LEMON = 'Lemon'
-    LETTUCE = 'Lettuce'
-    LIME = 'Lime'
-    MANGO = 'Mango'
-    MANGOES = 'Mangoes'
-    MILK = 'Milk'
-    MINT = 'Mint'
-    MUSHROOM = 'Mushroom'
-    MUSHROOMS = 'Mushrooms'
-    NECTARINE = 'Nectarine'
-    NECTARINES = 'Nectarines'
-    NON_PERISHABLE = 'Non-perishable'
-    OAT_MILK = 'Oat Milk'
-    OATS = 'Oats'
-    ONION = 'Onion'
-    ONIONS = 'Onions'
-    ORANGE = 'Orange'
-    PAPAYA = 'Papaya'
-    PAPAYAS = 'Papayas'
-    PARSLEY = 'Parsley'
-    PARSNIPS = 'Parsnips'
-    PASSION_FRUIT = 'Passion Fruit'
-    PASTA = 'Pasta'
-    PEACH = 'Peach'
-    PEACHES = 'Peaches'
-    PEARS = 'Pears'
-    PEPPERS = 'Peppers'
-    PINEAPPLE = 'Pineapple'
-    PINEAPPLES = 'Pineapples'
-    PLUM = 'Plum'
-    PLUMS = 'Plums'
-    POMEGRANATE = 'Pomegranate'
-    POTATOES = 'Potatoes'
-    QUINOA = 'Quinoa'
-    RADICCHIO = 'Radicchio'
-    RADISHES = 'Radishes'
-    RICE = 'Rice'
-    ROSEMARY = 'Rosemary'
-    SAGE = 'Sage'
-    SELF_DESTRUCTING_SPINACH = 'Self Destructing Spinach'
-    SHALLOTS = 'Shallots'
-    SNAP_PEAS = 'Snap Peas'
-    SOFT_CHEESE = 'Soft Cheese'
-    SPINACH = 'Spinach'
-    SQUASH = 'Squash'
-    SUGAR = 'Sugar'
-    SWEET_POTATOES = 'Sweet Potatoes'
-    THYME = 'Thyme'
-    TOFU = 'Tofu'
-    TOMATOES = 'Tomatoes'
-    TURNIPS = 'Turnips'
-    UNKNOWN = 'Unknown'
-    WHOLE_GRAINS = 'Whole grains'
-    WHOLE_MELONS = 'Whole Melons'
-    YOGURT = 'Yogurt'
-    ZUCCHINI = 'Zucchini'
+from rapidfuzz import fuzz, process
 
 
 class ScrapedItem(BaseModel):
     name: str
     price: str
-    category: Category
+    category: str
 
 
 class Result(BaseModel):
@@ -132,25 +21,96 @@ class Result(BaseModel):
     items: list[ScrapedItem]
 
 
-async def generate_list(url: str, ocr: str, jpeg: bytes = None):
-    try:
-        request_image = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        image = None
-        if jpeg is None:
-            image = Image.open(urlopen(request_image))
+def snap_categories(result_json: str, item_types: list[dict]) -> str:
+    """Fuzzy-snap Gemini's returned ItemType name to the closest exact name in the DB.
+
+    Gemini is prompted to return one of the 162 specific ItemType names. This step
+    tolerates minor wording differences / OCR noise by fuzzy-matching the returned
+    string against all known names with a high confidence threshold (85).
+
+    If the name match is not confident enough we fall back to fuzzy-matching the
+    returned string against the broad category values (70 threshold) so the item
+    still lands in a sensible bucket rather than "Unknown".
+    """
+    all_names = [row["name"] for row in item_types]
+    distinct_categories = sorted({row["category"] for row in item_types})
+
+    data = json.loads(result_json)
+    for item in data.get("items", []):
+        raw = item.get("category", "")
+
+        # First try: snap to a specific ItemType name
+        name_match = process.extractOne(raw, all_names, scorer=fuzz.WRatio)
+        if name_match and name_match[1] >= 85:
+            item["category"] = name_match[0]
+            continue
+
+        # Second try: snap to a broad category
+        cat_match = process.extractOne(raw, distinct_categories, scorer=fuzz.WRatio)
+        if cat_match and cat_match[1] >= 70:
+            item["category"] = cat_match[0]
         else:
-            image = Image.open(BytesIO(jpeg))
+            item["category"] = "Unknown"
+
+    return json.dumps(data)
+
+
+def build_item_type_context(item_types: list[dict]) -> str:
+    """Format all 162 ItemType names grouped by broad category for the Gemini prompt.
+
+    Grouping by category makes it easier for the model to scan and pick the right
+    specific name rather than inventing its own category label.
+    """
+    by_category: dict[str, list[str]] = {}
+    for row in item_types:
+        by_category.setdefault(row["category"], []).append(row["name"])
+
+    lines: list[str] = []
+    for category in sorted(by_category):
+        names = ", ".join(sorted(by_category[category]))
+        lines.append(f"{category}: {names}")
+    return "\n".join(lines)
+
+
+async def generate_list(
+    url: str, ocr: str, item_types: list[dict], jpeg_list: Optional[list[bytes]] = None
+) -> str:
+    try:
+        client = genai.Client(api_key=os.environ.get("AI_KEY"))
+        item_type_context = build_item_type_context(item_types)
+
         prompt = f"""
-            Given this OCR result from this image, give me a list of all of the grocery items in this receipt with categories and prices. An example price looks like $12.98
+            Given this OCR result from this image, give me a list of all of the grocery items in this receipt with categories and prices. An example price looks like $12.98.
+
+            For each item's "category" field you MUST copy one of the exact item type names from the list below — do not invent new names or use generic labels like "Snacks" or "Dairy". Each line below shows a broad group followed by the exact names you may use. Pick the closest match. If nothing fits, use "Unknown".
+
+            {item_type_context}
+
             OCR: {ocr}
         """
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=[image, prompt],
+
+        contents: list[Any] = []
+        if jpeg_list is None:
+            request_image = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            image = Image.open(urlopen(request_image))
+            contents = [image, prompt]
+        else:
+            contents = [
+                types.Part.from_bytes(data=jpeg, mime_type="image/jpeg")
+                for jpeg in jpeg_list
+            ]
+            contents.append(types.Part.from_text(text=prompt))
+
+        response = client.models.generate_content(  # type: ignore[arg-type]
+            model="gemini-2.0-flash",
+            contents=contents,
             config={
-                'response_mime_type': "application/json", "response_schema": Result
+                "response_mime_type": "application/json",
+                "response_schema": Result,
             },
         )
-        return response.text
+        raw_json = response.text or ""
+        return snap_categories(raw_json, item_types)
     except Exception as e:
         print(e)
+        raise
