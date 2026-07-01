@@ -18,6 +18,7 @@ class ScrapedItem(BaseModel):
 
 class Result(BaseModel):
     store: str
+    date: str
     items: list[ScrapedItem]
 
 
