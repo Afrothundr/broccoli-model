@@ -1,5 +1,4 @@
 import os
-from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -10,26 +9,10 @@ from fastapi.security import APIKeyHeader, APIKeyQuery
 from pydantic import BaseModel
 from pydantic_core import from_json
 
-from app.database.core_db import fetch_item_types
-from app.database.db import Receipt, database
 from app.utilities.generate_list import generate_list
 from app.utilities.ocr import ocrUrl
 
-ml_models = {}
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    if not database.is_connected:
-        await database.connect()
-
-    yield
-
-    if database.is_connected:
-        await database.disconnect()
-
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 apiKeys = [os.environ.get("API_KEY")]
 
@@ -63,9 +46,15 @@ def get_api_key(
     )
 
 
+class ItemType(BaseModel):
+    name: str
+    category: str
+
+
 class Resource(BaseModel):
     url: str
     receiptId: int
+    itemTypes: list[ItemType]
 
 
 @app.get("/")
@@ -77,8 +66,7 @@ def read_root():
 async def read_item(resource: Resource, api_key: str = Security(get_api_key)):
     try:
         (text, jpeg_list) = await ocrUrl(resource.url)
-        await Receipt.objects.get_or_create(text=text)
-        item_types = await fetch_item_types()
+        item_types = [item_type.model_dump() for item_type in resource.itemTypes]
         data = None
         if jpeg_list is None:
             data = from_json(await generate_list(resource.url, text, item_types))
