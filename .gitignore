@@ -168,3 +168,6 @@ cython_debug/
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Runtime-generated GCP service account creds (written by app/utilities/ocr.py)
+credentials.json
