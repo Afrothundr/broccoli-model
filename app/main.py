@@ -53,7 +53,10 @@ class ItemType(BaseModel):
 
 class Resource(BaseModel):
     url: str
-    receiptId: int
+    # Optional: broccoli-model is stateless and only echoes this back. The
+    # caller (broccoli-api) already holds the receipt id (a cuid string) in its
+    # own context, so it doesn't need to send one. Kept for backward compat.
+    receiptId: str | None = None
     itemTypes: list[ItemType]
 
 
