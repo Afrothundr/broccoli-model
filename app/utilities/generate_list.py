@@ -103,7 +103,9 @@ async def generate_list(
             contents.append(types.Part.from_text(text=prompt))
 
         response = client.models.generate_content(  # type: ignore[arg-type]
-            model="gemini-2.0-flash",
+            # gemini-2.0-flash was retired by Google (generate_content 404s);
+            # 2.5-flash is the current stable flash tier.
+            model="gemini-2.5-flash",
             contents=contents,
             config={
                 "response_mime_type": "application/json",
