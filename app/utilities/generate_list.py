@@ -7,7 +7,7 @@ from google import genai
 from google.genai import types
 from PIL import Image
 from pydantic import BaseModel
-from rapidfuzz import fuzz, process
+from rapidfuzz import fuzz, process, utils
 
 
 class ScrapedItem(BaseModel):
@@ -29,6 +29,19 @@ def snap_categories(result_json: str, item_types: list[dict]) -> str:
     tolerates minor wording differences / OCR noise by fuzzy-matching the returned
     string against all known names with a high confidence threshold (85).
 
+    Scored with token_set_ratio, not WRatio. WRatio's partial matching let a
+    brand-noise name clear the threshold against the wrong specific type:
+    "Daisy Cottage Cheese 24oz" hit "Cheese (hard such as cheddar, swiss,
+    block parmesan)" at 86 — a 2-week item stamped with a 6-month shelf life.
+    token_set_ratio ignores word order and extra tokens, so the same string
+    lands on "Cottage cheese" at 100.
+
+    The trade-off: a bare shared token ("Cheese") now ties at 100 against
+    every variant. A tie at the top means the input genuinely doesn't say
+    which specific type it is, so ties are treated as no-match and fall
+    through to the broad-category pass — never a coin-flip between shelf
+    lives that differ by months.
+
     If the name match is not confident enough we fall back to fuzzy-matching the
     returned string against the broad category values (70 threshold) so the item
     still lands in a sensible bucket rather than "Unknown".
@@ -40,14 +53,28 @@ def snap_categories(result_json: str, item_types: list[dict]) -> str:
     for item in data.get("items", []):
         raw = item.get("category", "")
 
-        # First try: snap to a specific ItemType name
-        name_match = process.extractOne(raw, all_names, scorer=fuzz.WRatio)
-        if name_match and name_match[1] >= 85:
-            item["category"] = name_match[0]
-            continue
+        # First try: snap to a specific ItemType name — top two so a tied
+        # top score is detectable as ambiguity.
+        name_matches = process.extract(
+            raw,
+            all_names,
+            scorer=fuzz.token_set_ratio,
+            processor=utils.default_process,
+            limit=2,
+        )
+        if name_matches and name_matches[0][1] >= 85:
+            tied = len(name_matches) > 1 and name_matches[1][1] == name_matches[0][1]
+            if not tied:
+                item["category"] = name_matches[0][0]
+                continue
 
         # Second try: snap to a broad category
-        cat_match = process.extractOne(raw, distinct_categories, scorer=fuzz.WRatio)
+        cat_match = process.extractOne(
+            raw,
+            distinct_categories,
+            scorer=fuzz.token_set_ratio,
+            processor=utils.default_process,
+        )
         if cat_match and cat_match[1] >= 70:
             item["category"] = cat_match[0]
         else:
