@@ -14,6 +14,10 @@ class ScrapedItem(BaseModel):
     name: str
     price: str
     category: str
+    # Gemini's self-assessed extraction confidence, 0.0-1.0. Surfaced to the
+    # user as a review chip (amber when low) so they know which lines to
+    # double-check. Defaults mid-range if the model omits it.
+    confidence: float = 0.5
 
 
 class Result(BaseModel):
@@ -111,6 +115,8 @@ async def generate_list(
             Given this OCR result from this image, give me a list of all of the grocery items in this receipt with categories and prices. An example price looks like $12.98.
 
             For each item's "category" field you MUST copy one of the exact item type names from the list below — do not invent new names or use generic labels like "Snacks" or "Dairy". Each line below shows a broad group followed by the exact names you may use. Pick the closest match. If nothing fits, use "Unknown".
+
+            For each item also give a "confidence" between 0.0 and 1.0: how sure you are that the name, price, and category were read correctly from the receipt. Be honest — blurry lines, unusual products, or guessed prices get low confidence (below 0.7); crisp printed lines get high confidence (0.85+).
 
             {item_type_context}
 
