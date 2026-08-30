@@ -70,41 +70,45 @@ async def process_page(jpeg_bytes: bytes):
 
 
 async def ocrUrl(url: str):
-    try:
-        r = requests.get(url)
-        content_type = r.headers.get('content-type')
-        result = str
-        jpeg_bytes_list = None
-        if content_type == 'application/pdf':
-            # Convert PDF pages to JPEG
-            jpeg_bytes_list = convert_pdf_pages_to_jpegs(
-                url,
-                start_page=0,
-                end_page=5
-            )
+    """Download the receipt ourselves and OCR the bytes.
 
-            # Process pages concurrently
-            tasks = [process_page(jpeg_bytes)
-                     for jpeg_bytes in jpeg_bytes_list]
-            results = await asyncio.gather(*tasks)
+    GCV's image_uri mode makes GOOGLE fetch the URL server-side, and that
+    fetcher fails ("URL does not appear to be accessible by us") on plenty of
+    public hosts — which used to surface as a confusing 500 (the old error
+    path also swallowed the real exception and crashed on `result.replace`).
+    Downloading here and passing `content=` removes that whole failure class;
+    the PDF path already worked this way.
+    """
+    jpeg_bytes_list = None
+    # A UA is required by several hosts (Wikimedia 403s the default
+    # python-requests agent) — same header the Gemini image fetch uses.
+    r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+    if r.status_code != 200:
+        raise Exception(f"Failed to download receipt image: {r.status_code}")
+    content_type = r.headers.get('content-type', '')
 
-            # Combine results with page numbers
-            formatted_results = []
-            for i, text in enumerate(results, 1):
-                if text.strip():  # Only include non-empty pages
-                    formatted_results.append(text)
+    if content_type == 'application/pdf':
+        # Convert PDF pages to JPEG
+        jpeg_bytes_list = convert_pdf_pages_to_jpegs(
+            url,
+            start_page=0,
+            end_page=5
+        )
 
-            result = ' '.join(formatted_results)
-        else:
-            # Handle non-PDF files as before
-            image = vision.Image()
-            image.source.image_uri = url
+        # Process pages concurrently
+        results = await asyncio.gather(
+            *(process_page(jpeg_bytes) for jpeg_bytes in jpeg_bytes_list)
+        )
 
-            response = client.text_detection(image=image)
-            if response.error.message:
-                raise Exception("errors", response.error.message)
-            texts = response.text_annotations
-            result = texts[0].description if texts else ""
-    except Exception as e:
-        print(e)
+        # Combine results with page numbers
+        result = ' '.join(text for text in results if text.strip())
+    else:
+        # Handle non-PDF files as image bytes
+        image = vision.Image(content=r.content)
+        response = client.text_detection(image=image)
+        if response.error.message:
+            raise Exception(f"OCR error: {response.error.message}")
+        texts = response.text_annotations
+        result = texts[0].description if texts else ""
+
     return result.replace('\n', ' '), jpeg_bytes_list

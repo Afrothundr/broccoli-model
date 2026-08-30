@@ -16,8 +16,10 @@ class ScrapedItem(BaseModel):
     category: str
     # Gemini's self-assessed extraction confidence, 0.0-1.0. Surfaced to the
     # user as a review chip (amber when low) so they know which lines to
-    # double-check. Defaults mid-range if the model omits it.
-    confidence: float = 0.5
+    # double-check. NOTE: must stay required (no default) — the Gemini API
+    # rejects response schemas that declare defaults. The prompt instructs
+    # the model to always emit it.
+    confidence: float
 
 
 class Result(BaseModel):
