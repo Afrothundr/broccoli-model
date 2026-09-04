@@ -139,8 +139,10 @@ async def generate_list(
 
         response = client.models.generate_content(  # type: ignore[arg-type]
             # gemini-2.0-flash was retired by Google (generate_content 404s);
-            # 2.5-flash is the current stable flash tier.
-            model="gemini-2.5-flash",
+            # 2.5-flash is the current stable flash tier. Model is
+            # env-configurable (GEMINI_MODEL) so future swaps/retirements
+            # need no code change.
+            model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
             contents=contents,
             config={
                 "response_mime_type": "application/json",
